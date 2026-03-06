@@ -19,8 +19,10 @@ def sampling_from_parametric_space_to_equivalent_points(
     ----------
         shape_params: Tensor with size BxMx3, containing the scale along each
                       axis for the M primitives
+                      3 are the 3 scale parameters of the superquadric, controlling the size of the shape along the x, y, and z axes.
         epsilons: Tensor with size BxMx2, containing the shape along the
                   latitude and the longitude for the M primitives
+                  2 are 2 shape parameters of the superquadric, controlling the "roundness" of the shape along the latitude and longitude directions.
 
     Returns:
     ---------
@@ -30,12 +32,19 @@ def sampling_from_parametric_space_to_equivalent_points(
            points from the surface of each primitive
     """
     # Allocate memory to store the sampling steps
+    # the torch.sign(x) means that we want to keep the sign of x, 
+    # and torch.abs(x)**p means that we want to raise the absolute value of x to the power of p. 
+    # This is a common way to implement a function that behaves like x^p but preserves the sign of x, 
+    #which is important for superquadrics where the shape can be defined by such a function.
     def fexp(x, p):
         return torch.sign(x)*(torch.abs(x)**p)
     B = shape_params.shape[0]  # batch size
     M = shape_params.shape[1]  # number of primitives
-    S = sq_sampler.n_samples
+    S = sq_sampler.n_samples   # number of sampled points per primitive, 
+                               #sq_sampler is an instance of EqualDistanceSamplerSQ
 
+    # etas are the sampling angles along the latitude, of size BxMxS, in range [-pi/2, pi/2]
+    # omegas are the sampling angles along the longitude, of size BxMxS, in range [-pi, pi]
     etas, omegas = sq_sampler.sample_on_batch(
         shape_params.detach().cpu().numpy(),
         epsilons.detach().cpu().numpy()
@@ -55,7 +64,10 @@ def sampling_from_parametric_space_to_equivalent_points(
     e1 = epsilons[:, :, 0].unsqueeze(-1)  # size BxMx1
     e2 = epsilons[:, :, 1].unsqueeze(-1)  # size BxMx1
 
-    x = a1 * fexp(torch.cos(etas), e1) * fexp(torch.cos(omegas), e2)
+    # Compute the points on the superquadrics surface with sampled angle coordinates (etas, omegas)
+    # fexp(a,b) is signed power, which is defined as sign(a) * abs(a)^b.
+    # x, y, z each are coordinates for all sampled points for all bach of primitives
+    x = a1 * fexp(torch.cos(etas), e1) * fexp(torch.cos(omegas), e2) #of size BxMxS.
     y = a2 * fexp(torch.cos(etas), e1) * fexp(torch.sin(omegas), e2)
     z = a3 * fexp(torch.sin(etas), e1)
 
@@ -67,7 +79,8 @@ def sampling_from_parametric_space_to_equivalent_points(
     y = ((y > 0).float() * 2 - 1) * torch.max(torch.abs(y), x.new_tensor(1e-6))
     z = ((z > 0).float() * 2 - 1) * torch.max(torch.abs(z), x.new_tensor(1e-6))
 
-    # Compute the normals of the SQs
+    # Compute the normals of the SQs, per sampled points on each primitive per batch
+    # of size of BxMxS
     nx = (torch.cos(etas)**2) * (torch.cos(omegas)**2) / x
     ny = (torch.cos(etas)**2) * (torch.sin(omegas)**2) / y
     nz = (torch.sin(etas)**2) / z
@@ -81,13 +94,13 @@ class Loss(nn.Module):
         super(Loss, self).__init__()
 
         self._init_buffers()
-
+        #initialize sampler that samples points from superquadrics
         self.sampler = EqualDistanceSamplerSQ(n_samples=cfg.n_samples, D_eta=0.05, D_omega=0.05)
-        
-        self.w_sps = cfg.w_sps
-        self.w_ext = cfg.w_ext
-        self.w_cub = cfg.w_cub
-        self.w_cd = cfg.w_cd    
+        # weights for each loss components
+        self.w_sps = cfg.w_sps # sparsity loss weight
+        self.w_ext = cfg.w_ext # existence loss weight
+        self.w_cub = cfg.w_cub # cuboid loss weight
+        self.w_cd = cfg.w_cd   # chamfer distance loss weight
 
         self.cos_sim_cubes = nn.CosineSimilarity(dim=4, eps=1e-4) 
 
