@@ -98,25 +98,37 @@ class LMOptimizer(nn.Module):
     @staticmethod
     def compute_residuals_points_unweighted(params, weights, points):
 
-        scale_par = params[:3]
-        shape_par = params[3:5]
-        q = params[5:9]
-        t = params[9:12]
-        R = R_from_q_multi(q).to(params.dtype)
+        scale_par = params[:3] #scale parameters for current primitive, index 0,1,2
+        shape_par = params[3:5] #shape parameters for current primitive, index 3,4
+        q = params[5:9]  #rotation quaternion for current primitive, index 5,6,7,8
+        t = params[9:12] #translation vector for current primitive, index 9,10,11
+        R = R_from_q_multi(q).to(params.dtype) #quaternion to rotation matrix
+        
+        #rescale the shape and scale parameters to actual values used in superquadric
         shape = 0.1 + 1.8 * torch.sigmoid(shape_par)
         scale = torch.exp(scale_par)
         
+        #inverse transformation to point cloud points
+        #point clouds points: from world to primitive/local frame
+        #translation step
         out = points - t #out_dict['trans'].unsqueeze(2).repeat(1,1,num_points,1)   
         out = torch.sign(out) * torch.clamp(abs(out), 1e-4, 1e6)
 
+        #rotation step
         # out = out @ R  #B * N * num_points * 3
+        # for each previous matched dimensions (same B,P), multiply last two dimensions
+        # so for R take last 2 dimensions kj (3x3 3D rotation matrix)
+        # for out take last 2 dimensions ik (Nx3 3D point coordinates)
+        # and then outputting in (...means keep previous dimensions)xNx3 form (i=N, j=3)
         out = torch.einsum('...kj,...ik->...ij', R, out) # this is FORWARD, so I assume R.T to be the rotation of my SQ
         # same as doing  torch.einsum('cd,de->ce', R.permute(-1,-2), out.permute(-1,-2)).permute(-1,-2)
         # out = torch.sign(out) * torch.max(abs(out), out.new_tensor(1e-6) )
         # out = torch.sign(out) * torch.clamp(abs(out), 1e-4, 1e6)
-        scale = scale.clamp(1e-6, 1e2)
-        r_norm = torch.sqrt(torch.sum(out ** 2, -1))
-        r_norm = torch.clamp(r_norm, 1e-4, 1e6)
+
+        scale = scale.clamp(1e-6, 1e2) #crop scale in range 1e-6<scale<100
+        # get radial distance of points from origin in primitive frame
+        r_norm = torch.sqrt(torch.sum(out ** 2, -1)) #distance from point to primitive center
+        r_norm = torch.clamp(r_norm, 1e-4, 1e6) #crop in 0.0001<r_norm<1000000
         
         # e = safe_pow(
         #     safe_pow(
@@ -131,6 +143,10 @@ class LMOptimizer(nn.Module):
             safe_pow(safe_pow((out[...,0] / scale[...,None,0]) ** 2, (1 / shape[...,None,1])) +
             safe_pow((out[...,1] / scale[...,None,1]) ** 2, 1 / shape[...,None,1]), shape[...,None,1] / shape[...,None,0]) +
             safe_pow((out[...,2] / scale[...,None,2]) ** 2, (1 / shape[...,None,0])), -shape[...,None,0] / 2) - 1
+        # e here is the inside/outside error
+        # define f(x,y,z) = 1 is the implicit formula of superquadric, e = f(x,y,z)-1
+        # e>0, outside, e<0 inside, e=0 on surface
+        # magnitude of e means how much point is off from surface, here used to scale r_norm
         rad_res = r_norm * torch.abs(e)
     
         return rad_res   
@@ -164,12 +180,28 @@ class LMOptimizer(nn.Module):
         rad_res = r_norm * torch.abs(e)/len(points) #+ scale[0]*scale[1]*scale[2]
         weighted_rad_res = (rad_res * weights)    # t#     (sum(weights)+0.01)  #/sum(weights) #/len(points)    # the division stays for NORMALIZATION
 
+        #sample points on primitive, there are S=4x4=16 sampled points on the primitive
         sampled_points =  get_uniformly_sampled_points(scale, shape, torch.eye(3).cuda().to(R.dtype), torch.zeros(3).cuda().to(t.dtype), N=4)
+        # by inserting None, it adds new axis, sampled_points (Sx3)->(1xSx3), out (Nx3)->(Nx1x3)
+        # then diff is (NxSx3), NxSx[3D XYZ differences].
         diff = sampled_points[None,...] - out[:, None,:]
+        # (weights < 0.5) keeps only those points of low assignment confidence (not strongly associated to ANY primitive)
+        # (weights < 0.5)[...,None,None] makes it Nx1x1, so it can filter diff based on N index
+        '''this mechanism selects points those not strongly binded to any primitive
+        but it ignores those associated to current primitive
+        it doesn't rule out the outliers at the end as well:
+            if the min distances between point and sampled point are obviously far, it is outlier
+        '''
         diff = (weights < 0.5)[...,None,None] * diff
-        diff += 0.0001
+        diff += 0.0001 #to make filtered 0 terms positive and avoid NaNs in sqrt
+        # get the distance of each point to the closest sampled point on primitive
         distances = torch.sqrt(torch.sum(diff ** 2, -1)).min(-2).values / diff.shape[1] # the division stays for NORMALIZATION
-
+        '''
+        distance mechanism can also be plugged with a shape fit mechanism which notes the variance of distance
+        to make the distance is relatively uniform, which make the shape fits better
+        Of course, the outliers need to be removed from variance calculation, otherwise it is easily polluted
+        '''
+        # now the residual has 2 elements per point, 1 for scaled radial distance to surface, 1 for distance to matched sample point
         res = torch.hstack((weighted_rad_res, distances))
         return res 
     
