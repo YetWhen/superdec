@@ -25,8 +25,9 @@ def main(cfg: DictConfig) -> None:
 
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
-
-    dataloader = DataLoader(dataset, batch_size=cfg.dataloader.batch_size, shuffle=False, num_workers=cfg.dataloader.num_workers)
+    # batch size is set as 128 in save_npz.yaml
+    print(f"Using batch size {cfg.dataloader.batch_size/4} for evaluation.")
+    dataloader = DataLoader(dataset, batch_size=cfg.dataloader.batch_size//4, shuffle=False, num_workers=cfg.dataloader.num_workers)
     ckp_path = os.path.join(cfg.checkpoints_folder, cfg.checkpoint_file)
     config_path = os.path.join(cfg.checkpoints_folder, 'config.yaml')
     if not os.path.isfile(ckp_path):
@@ -34,7 +35,8 @@ def main(cfg: DictConfig) -> None:
     checkpoint = torch.load(ckp_path, map_location=device, weights_only=False)
     with open(config_path) as f:
         configs = OmegaConf.load(f)
-
+    
+    # initialize the model
     model = SuperDec(configs.superdec).to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()

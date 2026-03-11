@@ -17,7 +17,7 @@ class SuperDec(nn.Module):
         self.pos_encoding_type = ctx.decoder.pos_encoding_type
         self.dim_feedforward = ctx.decoder.dim_feedforward
         self.emb_dims = ctx.point_encoder.l3.out_channels # output dimension of pvcnn
-        self.lm_optimization = False
+        self.lm_optimization = True # set to False by default, turned on in some config
         if self.lm_optimization:
             self.lm_optimizer = LMOptimizer()
 
