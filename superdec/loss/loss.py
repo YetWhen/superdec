@@ -191,10 +191,13 @@ class Loss(nn.Module):
         loss = 0
         loss_dict = {}
 
-        if self.w_cub > 0:
-            cub_loss = self.compute_cuboid_loss(pc_inver, normals_inver, out_dict)
-            loss += self.w_cub * cub_loss
-            loss_dict['cub_loss'] = cub_loss.item()
+        # try to remove the cuboid loss to see if it can capture ellipsoids form
+        # theoretically it doesn't push the model to cuboid shapes 
+        # because it doesn't change shape vector and only fits the scale to it
+        # if self.w_cub > 0:
+        #     cub_loss = self.compute_cuboid_loss(pc_inver, normals_inver, out_dict)
+        #     loss += self.w_cub * cub_loss
+        #     loss_dict['cub_loss'] = cub_loss.item()
 
         if self.w_cd > 0:
             pcl_to_prim_loss, prim_to_pcl_loss = self.compute_cd_loss(pc_inver, out_dict)

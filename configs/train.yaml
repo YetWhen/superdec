@@ -3,7 +3,7 @@ use_wandb: false
 wandb:
   project: #insert PROJECT NAME
   entity: #insert USERNAME
-run_name: superdec_base
+run_name: superdec_no_cuboid_loss #this changes the folder name where checkpoint is saved
 dataset: shapenet  
 device: cuda
 
