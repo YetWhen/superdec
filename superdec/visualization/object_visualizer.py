@@ -58,7 +58,7 @@ def main(cfg: DictConfig) -> None:
             name="/segmented_pointcloud",
             points=np.array(pcs[idx].points),
             colors=np.array(pcs[idx].colors),
-            point_size=0.005,
+            point_size=0.002,
         )
     server.scene.set_up_direction([0.0, 1.0, 0.0])
     gui_model_selection = server.gui.add_dropdown("Model index", [str(i) for i in range(len(names))], initial_value='0')

@@ -191,6 +191,8 @@ class LMOptimizer(nn.Module):
         but it ignores those associated to current primitive
         it doesn't rule out the outliers at the end as well:
             if the min distances between point and sampled point are obviously far, it is outlier
+
+        MISMATCHING is more of the issue, that the neural network is using incorrect subset of point cloud to fit primitives
         TODO: find the scale/unit/range of point cloud point's distance to primitive and origin
               and then rule out the outliers.
               or directly rule out the 5 percentile of distance in distances vector
@@ -199,7 +201,7 @@ class LMOptimizer(nn.Module):
         diff += 0.0001 #to make filtered 0 terms positive and avoid NaNs in sqrt
         # get the distance of each point to the closest sampled point on primitive
         distances = torch.sqrt(torch.sum(diff ** 2, -1)).min(-2).values / diff.shape[1] # the division stays for NORMALIZATION
-        diff_from_mean = 1 * (distances - distances.mean())
+        diff_from_mean = 32 * (distances - distances.mean())
         '''
         distance mechanism can also be plugged with a shape fit mechanism which notes the variance of distance
         to make the distance is relatively uniform, which make the shape fits better
