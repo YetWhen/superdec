@@ -52,7 +52,11 @@ class SuperDecHead(nn.Module):
         return  torch.sigmoid(x) 
     
     @staticmethod 
-    def shape_activation(x):
+    def shape_activation(x): #it scales the output shape parameter to 0.1~1.9
+        # To make the shape closer to ellipsoids, need to make it closer to 1
+        # to make it closer to cylinders, need to make one of e1 closer to 0.1, e2 closer to 1
+        # to make it closer to cuboids, need to make e1 e2 both closer to 0.1
+        # return 0.1 + 1.8 * torch.sigmoid(x)
         return 0.1 + 1.8 * torch.sigmoid(x)
     
     @staticmethod 
