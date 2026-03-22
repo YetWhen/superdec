@@ -9,7 +9,7 @@ device: cuda
 
 checkpoints:
   resume_from: checkpoints/superdec_no_cuboid_loss/epoch_80.pt #
-  keep_epoch: False
+  keep_epoch: True
 
 superdec:
   decoder:
@@ -61,11 +61,11 @@ shapenet:
 
 trainer:
   save_path: checkpoints
-  save_every_n_epochs: 1 # originally 50, change to 10 to better monitor the sparsity loss, to avoid local minima
+  save_every_n_epochs: 10 # originally 50, change to 10 to better monitor the sparsity loss, to avoid local minima
   num_epochs: 500 # In paper, w_sps = 0.1 for 500 epochs, then w_sps = 0.6 for 100 epochs
   batch_size: 6 # batch 4 takes 9GB GPU memory
   num_workers: 4
-  evaluate_every_n_epochs: 1
+  evaluate_every_n_epochs: 10
   augmentations: True
 optimizer:
   lr: 4e-4 #1e-4 #1e-4   0.001

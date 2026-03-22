@@ -46,9 +46,9 @@ def main(cfg: DictConfig):
         checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
         model.load_state_dict(checkpoint['model_state_dict'])
         if cfg.checkpoints.keep_epoch:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            if scheduler is not None and checkpoint.get('scheduler_state_dict') is not None:
-                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            # if scheduler is not None and checkpoint.get('scheduler_state_dict') is not None:
+            #     scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
             start_epoch = checkpoint.get('epoch', 0) + 1
         best_val_loss = checkpoint.get('val_loss', float('inf'))
         print(f"Resumed from checkpoint {checkpoint_path} at epoch {start_epoch}, best_val_loss={best_val_loss}")
