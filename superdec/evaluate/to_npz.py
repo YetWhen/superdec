@@ -26,8 +26,8 @@ def main(cfg: DictConfig) -> None:
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
     # batch size is set as 128 in save_npz.yaml
-    print(f"Using batch size {cfg.dataloader.batch_size/8} for evaluation.")
-    dataloader = DataLoader(dataset, batch_size=cfg.dataloader.batch_size//8, shuffle=False, num_workers=cfg.dataloader.num_workers)
+    print(f"Using batch size {cfg.dataloader.batch_size} for evaluation.")
+    dataloader = DataLoader(dataset, batch_size=cfg.dataloader.batch_size, shuffle=False, num_workers=cfg.dataloader.num_workers)
     ckp_path = os.path.join(cfg.checkpoints_folder, cfg.checkpoint_file)
     config_path = os.path.join(cfg.checkpoints_folder, 'config.yaml')
     if not os.path.isfile(ckp_path):
